@@ -1,4 +1,5 @@
 const cvs = document.getElementById("blocks");
+const scoreElement = document.getElementById("score");
 const ctx = cvs.getContext("2d");
 const SQ = 20;
 const drawSquare = (x, y, color) => {
@@ -31,38 +32,17 @@ const drawBoard = () => {
 
 drawBoard();
 
-const Z = [
-  [
-    [1, 1, 0],
-    [0, 1, 1],
-    [0, 0, 0]
-  ],
-  [
-    [0, 0, 1],
-    [0, 1, 1],
-    [0, 1, 0]
-  ],
-  [
-    [0, 0, 0],
-    [1, 1, 0],
-    [0, 1, 1]
-  ],
-  [
-    [0, 1, 0],
-    [1, 1, 0],
-    [1, 0, 0]
-  ]
-];
-
 const PIECES = [
   [Z, "red"],
-  [Z, "red"],
-  [Z, "red"],
-  [Z, "red"],
-  [Z, "red"],
-  [Z, "red"],
-  [Z, "red"]
+  [S, "green"],
+  [T, "yellow"],
+  [O, "blue"],
+  [L, "purple"],
+  [I, "cyan"],
+  [J, "orange"]
 ];
+
+let p = randomPiece();
 
 function Piece(block, color) {
   this.block = block;
@@ -74,52 +54,50 @@ function Piece(block, color) {
 }
 
 function randomPiece() {
-  let randomN = Math.floor(Math.random() * PIECES.length);
-  return new Piece(PIECES[randomN], PIECES[randomN][1]);
+  let r = (randomN = Math.floor(Math.random() * PIECES.length));
+  return new Piece(PIECES[r][0], PIECES[r][1]);
 }
 
-Piece.prototype.draw = function() {
+Piece.prototype.fill = function(color) {
   const { length } = this.activeBlock;
   for (let r = 0; r < length; r += 1) {
     for (let c = 0; c < length; c += 1) {
       if (this.activeBlock[r][c]) {
-        drawSquare(this.x + c, this.y + r, this.color);
+        drawSquare(this.x + c, this.y + r, color);
       }
     }
   }
 };
 
+Piece.prototype.draw = function() {
+  this.fill(this.color);
+};
+
 Piece.prototype.unDraw = function() {
-  const { length } = this.activeBlock;
-  for (let r = 0; r < length; r += 1) {
-    for (let c = 0; c < length; c += 1) {
-      if (this.activeBlock[r][c]) {
-        drawSquare(this.x + c, this.y + r, VACANT);
-      }
-    }
-  }
+  this.fill(VACANT);
 };
 
 Piece.prototype.collision = function(x, y, piece) {
   const { length } = piece;
   for (let r = 0; r < length; r += 1) {
-    for (let c = 0; c < length; r += 1) {
+    for (let c = 0; c < length; c += 1) {
       if (!piece[r][c]) {
         continue;
       }
       let newX = this.x + c + x;
       let newY = this.y + r + y;
-      if (newX < 0 || newX > COLUMNS || newY > ROW) {
+      if (newX < 0 || newX >= COLUMNS || newY >= ROWS) {
         return true;
       }
       if (newY < 0) {
         continue;
       }
-      if (board[newY][newX] !== VACANT) {
+      if (board[newY][newX] != VACANT) {
         return true;
       }
     }
   }
+  return false;
 };
 
 Piece.prototype.moveDown = function() {
@@ -128,8 +106,8 @@ Piece.prototype.moveDown = function() {
     this.y += 1;
     this.draw();
   } else {
-    this.lock;
-    piece = randomPiece();
+    this.lock();
+    p = randomPiece();
   }
 };
 
@@ -152,7 +130,7 @@ Piece.prototype.moveRight = function() {
 Piece.prototype.rotate = function() {
   let nextPattern = this.block[(this.blockN + 1) % this.block.length];
   let kick = 0;
-  if (!this.collision(0, 0, nextPattern)) {
+  if (this.collision(0, 0, nextPattern)) {
     if (this.x > COLUMNS / 2) {
       kick = -1;
     } else {
@@ -161,12 +139,16 @@ Piece.prototype.rotate = function() {
   }
   if (!this.collision(kick, 0, nextPattern)) {
     this.unDraw();
-    this.activeBlock = nextPattern;
+    this.x += kick;
+    this.blockN = (this.blockN + 1) % this.block.length;
+    this.activeBlock = this.block[this.blockN];
     this.draw();
   }
 };
 
+let score = 0;
 Piece.prototype.lock = function() {
+  const { length } = this.activeBlock;
   for (let r = 0; r < length; r += 1) {
     for (let c = 0; c < length; c += 1) {
       if (!this.activeBlock[r][c]) {
@@ -180,26 +162,46 @@ Piece.prototype.lock = function() {
       board[this.y + r][this.x + c] = this.color;
     }
   }
-};
+  // remove full rows
+  for (let r = 0; r < ROWS; r += 1) {
+    let isRowFull = true;
+    for (let c = 0; c < COLUMNS; c += 1) {
+      isRowFull = isRowFull && board[r][c] !== VACANT;
+    }
+    if (isRowFull) {
+      for (let y = r; y > 1; y--) {
+        for (let c = 0; c < COLUMNS; c += 1) {
+          board[y][c] = board[y - 1][c];
+        }
+      }
+      for (let c = 0; c < COLUMNS; c += 1) {
+        board[0][c] = VACANT;
+      }
+      score += 10;
+    }
+  }
+  drawBoard();
 
-let piece = Z[0];
+  // update score
+  scoreElement.innerHTML = score;
+};
 
 function CONTROL(event) {
   switch (event.keyCode) {
     case 37: {
-      piece.moveLeft();
+      p.moveLeft();
       break;
     }
     case 38: {
-      piece.rotate();
+      p.rotate();
       break;
     }
     case 39: {
-      piece.moveRight();
+      p.moveRight();
       break;
     }
     case 40: {
-      piece.moveDown();
+      p.moveDown();
       break;
     }
   }
@@ -207,10 +209,27 @@ function CONTROL(event) {
 
 document.addEventListener("keydown", CONTROL);
 const pieceColor = "orange";
-for (let r = 0; r < piece.length; r += 1) {
-  for (let c = 0; c < piece.length; c += 1) {
-    if (piece[r][c]) {
+for (let r = 0; r < p.length; r += 1) {
+  for (let c = 0; c < p.length; c += 1) {
+    if (p[r][c]) {
       drawSquare(c, r, pieceColor);
     }
   }
 }
+
+let dropStart = Date.now();
+let gameOver = false;
+
+function drop() {
+  let now = Date.now();
+  let delta = now - dropStart;
+  if (delta > 1000) {
+    p.moveDown();
+    dropStart = Date.now();
+  }
+  if (!gameOver) {
+    requestAnimationFrame(drop);
+  }
+}
+
+drop();
